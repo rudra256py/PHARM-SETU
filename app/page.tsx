@@ -2,12 +2,13 @@
 import { useRef, useState } from "react";
 import { compressImage } from "@/lib/compress";
 import { DEFAULT_LOCATION, LANGS, janAushadhiMapsUrl } from "@/lib/config";
+import { SAMPLES, renderSample } from "@/lib/samples";
 import type { DecodeResponse, DecodeSuccess, Lang, Medicine } from "@/lib/types";
 
 const T = {
-  hi: { camera: "📸 पर्ची / दवाई की फोटो खींचें", gallery: "🖼️ गैलरी से चुनें", rx: "डॉक्टर की पर्ची", strip: "दवाई का पत्ता", loading: "पढ़ रहे हैं… कृपया रुकें", listen: "🔊 सुनिए", map: "📍 सबसे पास जन-औषधि केंद्र देखें", alerts: "सुरक्षा चक्र", check: "साफ़ नहीं दिखा — डॉक्टर/फार्मासिस्ट से पुष्टि करें", note: "यह जानकारी समझने के लिए है, डॉक्टर की सलाह का विकल्प नहीं।", slots: ["🌅 सुबह", "☀️ दोपहर", "🌙 रात"], days: "दिन", found: "दवाइयाँ मिलीं" },
-  bh: { camera: "📸 पर्ची / दवाई के फोटो खींचीं", gallery: "🖼️ गैलरी से चुनीं", rx: "डॉक्टर के पर्ची", strip: "दवाई के पत्ता", loading: "पढ़त बानी… तनी रुकीं", listen: "🔊 सुनीं", map: "📍 सबसे नजदीक जन-औषधि केंद्र देखीं", alerts: "सुरक्षा चक्र", check: "साफ ना लउकल — डॉक्टर/फार्मासिस्ट से पूछीं", note: "ई जानकारी समझे खातिर बा, डॉक्टर के सलाह के जगह ना ह।", slots: ["🌅 भोर", "☀️ दुपहरिया", "🌙 रात"], days: "दिन", found: "दवाई मिलल" },
-  en: { camera: "📸 Take photo of prescription / medicine", gallery: "🖼️ Choose from gallery", rx: "Prescription", strip: "Medicine strip", loading: "Reading… please wait", listen: "🔊 Listen", map: "📍 Find nearest Jan Aushadhi Kendra", alerts: "Suraksha Chakra", check: "Unclear — confirm with doctor/pharmacist", note: "This is for understanding only, not a substitute for medical advice.", slots: ["🌅 Morning", "☀️ Afternoon", "🌙 Night"], days: "days", found: "medicines found" },
+  hi: { camera: "📸 पर्ची / दवाई की फोटो खींचें", gallery: "🖼️ गैलरी से चुनें", rx: "डॉक्टर की पर्ची", strip: "दवाई का पत्ता", loading: "पढ़ रहे हैं… कृपया रुकें", listen: "🔊 सुनिए", map: "📍 सबसे पास जन-औषधि केंद्र देखें", alerts: "सुरक्षा चक्र", check: "साफ़ नहीं दिखा — डॉक्टर/फार्मासिस्ट से पुष्टि करें", note: "यह जानकारी समझने के लिए है, डॉक्टर की सलाह का विकल्प नहीं।", slots: ["🌅 सुबह", "☀️ दोपहर", "🌙 रात"], days: "दिन", found: "दवाइयाँ मिलीं", demo: "🧪 डेमो पर्ची आज़माएँ (1-क्लिक)", listenAll: "🔊 सब सुनिए", wa: "📲 WhatsApp पर भेजें", safe: "✅ हमारी जाँच में कोई ख़तरनाक मेल नहीं मिला" },
+  bh: { camera: "📸 पर्ची / दवाई के फोटो खींचीं", gallery: "🖼️ गैलरी से चुनीं", rx: "डॉक्टर के पर्ची", strip: "दवाई के पत्ता", loading: "पढ़त बानी… तनी रुकीं", listen: "🔊 सुनीं", map: "📍 सबसे नजदीक जन-औषधि केंद्र देखीं", alerts: "सुरक्षा चक्र", check: "साफ ना लउकल — डॉक्टर/फार्मासिस्ट से पूछीं", note: "ई जानकारी समझे खातिर बा, डॉक्टर के सलाह के जगह ना ह।", slots: ["🌅 भोर", "☀️ दुपहरिया", "🌙 रात"], days: "दिन", found: "दवाई मिलल", demo: "🧪 डेमो पर्ची आजमाईं (1-क्लिक)", listenAll: "🔊 सब सुनीं", wa: "📲 WhatsApp पर भेजीं", safe: "✅ हमार जाँच में कौनो खतरनाक मेल ना मिलल" },
+  en: { camera: "📸 Take photo of prescription / medicine", gallery: "🖼️ Choose from gallery", rx: "Prescription", strip: "Medicine strip", loading: "Reading… please wait", listen: "🔊 Listen", map: "📍 Find nearest Jan Aushadhi Kendra", alerts: "Suraksha Chakra", check: "Unclear — confirm with doctor/pharmacist", note: "This is for understanding only, not a substitute for medical advice.", slots: ["🌅 Morning", "☀️ Afternoon", "🌙 Night"], days: "days", found: "medicines found", demo: "🧪 Try a demo prescription (1-click)", listenAll: "🔊 Listen to all", wa: "📲 Send on WhatsApp", safe: "✅ No risky combination found in our checks" },
 };
 
 const TIMING: Record<Lang, Record<Medicine["timing"], string>> = {
@@ -65,6 +66,30 @@ export default function Home() {
     window.speechSynthesis.speak(u);
   }
 
+  async function runDemo(i: number) {
+    try {
+      const f = await renderSample(SAMPLES[i]);
+      onFile(f);
+    } catch {
+      setError("Demo parchi nahi ban payi. Dobara try karein.");
+    }
+  }
+
+  function listenAll() {
+    if (!result) return;
+    speak([result.summarySpeech, ...result.alerts.map((a) => a.message), ...result.medicines.map((m) => m.speech)].filter(Boolean).join(" ... "));
+  }
+
+  function shareWA() {
+    if (!result) return;
+    const pad = (n: number) => (n > 0 ? String(n) : "❌");
+    const meds = result.medicines
+      .map((m, i) => `${i + 1}. *${m.brandName}* ${m.strength ?? ""}\n🌅 ${pad(m.schedule.morning)}   ☀️ ${pad(m.schedule.afternoon)}   🌙 ${pad(m.schedule.night)}  — ${TIMING[lang][m.timing]}\n${m.purpose}`)
+      .join("\n\n");
+    const al = result.alerts.length ? `\n\n⚠️ *${t.alerts}*\n` + result.alerts.map((a) => `• ${a.message}`).join("\n") : "";
+    window.open("https://wa.me/?text=" + encodeURIComponent(`💊 *PHARM SETU*\n\n${meds}${al}\n\n_${t.note}_`), "_blank");
+  }
+
   function openMap() {
     const go = (lat: number, lng: number) => window.open(janAushadhiMapsUrl(lat, lng), "_blank");
     if (!navigator.geolocation) return go(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
@@ -76,7 +101,7 @@ export default function Home() {
   }
 
   return (
-    <main>
+    <main style={{ paddingBottom: result ? 100 : 40 }}>
       <header className="top">
         <b>🌉 PHARM SETU</b>
         <div className="pills">
@@ -97,6 +122,12 @@ export default function Home() {
         <label className="big teal">{t.gallery}
           <input type="file" accept="image/*" hidden onChange={(e) => onFile(e.target.files?.[0])} />
         </label>
+        <div className="demo">
+          <p>{t.demo}</p>
+          {SAMPLES.map((sm, i) => (
+            <button key={sm.id} onClick={() => runDemo(i)}>{sm.title[lang]}</button>
+          ))}
+        </div>
       </section>
 
       {loading && <p className="msg">⏳ {t.loading}</p>}
@@ -105,6 +136,7 @@ export default function Home() {
       {result && (
         <section>
           <p className="msg">{result.medicines.length} {t.found}</p>
+          {result.alerts.length === 0 && <p className="card okcard">{t.safe}</p>}
           {result.alerts.length > 0 && (
             <div className="card red">
               <h3>⚠️ {t.alerts}</h3>
@@ -132,6 +164,13 @@ export default function Home() {
           <button className="big teal" onClick={openMap}>{t.map}</button>
           <p className="note">{t.note}</p>
         </section>
+      )}
+
+      {result && (
+        <div className="bar">
+          <button className="voice" onClick={listenAll}>{t.listenAll}</button>
+          <button className="wa" onClick={shareWA}>{t.wa}</button>
+        </div>
       )}
     </main>
   );
