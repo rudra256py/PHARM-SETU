@@ -18,3 +18,10 @@ main { max-width: 560px; margin: 0 auto; padding: 0 14px 40px; }
 .sig { font-size: 14px; color: #475569; } .warn { color: #B45309; font-weight: 600; }
 .voice { background: #EA580C; color: #fff; border: 0; border-radius: 12px; padding: 12px 18px; font-size: 18px; font-weight: 700; cursor: pointer; }
 .note { font-size: 13px; color: #64748b; text-align: center; }
+.demo { background: #fff; border: 2px dashed #94a3b8; border-radius: 16px; padding: 10px; display: grid; gap: 8px; }
+.demo p { margin: 0; font-weight: 700; text-align: center; font-size: 15px; }
+.demo button { border: 1px solid #cbd5e1; background: #F8FAFC; border-radius: 12px; padding: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.okcard { border: 2px solid #16A34A; background: #F0FDF4; font-weight: 700; text-align: center; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid #e2e8f0; }
+.bar button { flex: 1; border: 0; border-radius: 14px; padding: 14px 8px; font-size: 17px; font-weight: 800; color: #fff; cursor: pointer; }
+.bar .voice { background: #EA580C; } .bar .wa { background: #16A34A; }
