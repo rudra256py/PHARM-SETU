@@ -2,31 +2,14 @@
 // Place at: app/api/decode/route.ts
 import { GoogleGenAI, Type } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
+import { runSafetyRules } from "@/lib/safety";
+import type { Lang, Medicine } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // Vercel: Gemini vision ko time lag sakta hai
+export const maxDuration = 60;
 
-type Lang = "hi" | "en" | "bh";
-type Sev = "high" | "medium";
-type M = Record<Lang, string>;
-
-type Med = {
-  brandName: string;
-  genericSalt: string;
-  strength: string | null;
-  form: string;
-  purpose: string;
-  sigOriginal: string | null;
-  sigExplained: string;
-  schedule: { morning: number; afternoon: number; night: number };
-  timing: string;
-  durationDays: number | null;
-  foodWarnings: string[];
-  speech: string;
-  needsCheck: boolean;
-};
-
-type Alert = { id: string; severity: Sev; medicines: string[]; icons: string[]; message: string };
+const VERSION = "0.3";
+const DEFAULT_MODEL = "gemini-3.5-flash";
 
 const LANG_NAME: Record<Lang, string> = {
   hi: "Hindi in Devanagari script, very simple everyday words",
@@ -95,158 +78,83 @@ ${mode === "strip"
   : "- MODE prescription: read every medicine line on the prescription."}
 `;
 
-/* ------------------- Suraksha Chakra: rule-based alerts ------------------- */
-// Ye hamare apne verified rules hain – AI ke bharose nahi. Judges ke saamne yahi bharosa dilata hai.
+/* ------------------------------ AI plumbing ------------------------------ */
 
-const ANTACID = /antacid|aluminium|aluminum|magnesium|calcium carbonate|digene|gelusil|mucaine/;
-const MINERAL = /antacid|aluminium|aluminum|magnesium|calcium|ferrous|iron|zinc|digene|gelusil|mucaine/;
-const BINDERS = /floxacin|doxycycline|tetracycline|minocycline/;
-const NSAID = /diclofenac|ibuprofen|aceclofenac|naproxen|nimesulide|etoricoxib|piroxicam|ketorolac/;
-const THINNER = /warfarin|acenocoumarol|clopidogrel|aspirin|ticagrelor|apixaban|rivaroxaban/;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const short = (s: string) => s.replace(/\s+/g, " ").slice(0, 160);
 
-type RuleBase = { id: string; sev: Sev; icons: string[]; msg: M };
-type Rule =
-  | (RuleBase & { kind: "single"; a: RegExp })
-  | (RuleBase & { kind: "dup"; a: RegExp })
-  | (RuleBase & { kind: "pair"; a: RegExp; b: RegExp });
+function makeClient(key: string) {
+  const httpOptions = { timeout: 20000 };
+  // "AQ." se shuru hone wali keys Vertex AI express keys hoti hain; AI Studio ki keys "AIza" se shuru hoti hain.
+  return key.startsWith("AQ.")
+    ? new GoogleGenAI({ vertexai: true, apiKey: key, httpOptions })
+    : new GoogleGenAI({ apiKey: key, httpOptions });
+}
 
-const RULES: Rule[] = [
-  {
-    id: "azithro_antacid", kind: "pair", a: /azithromycin/, b: ANTACID, sev: "medium", icons: ["⏱️"],
-    msg: {
-      en: "Do not take {A} and {B} together. Keep a 2-hour gap.",
-      hi: "{A} और {B} एक साथ न लें। दोनों के बीच 2 घंटे का अंतर रखें।",
-      bh: "{A} आ {B} एक साथे मत खाईं। दूनो के बीच 2 घंटा के अंतर राखीं।",
-    },
-  },
-  {
-    id: "mineral_binding", kind: "pair", a: BINDERS, b: MINERAL, sev: "medium", icons: ["⏱️"],
-    msg: {
-      en: "{B} weakens {A}. Keep at least a 2-3 hour gap (ask your pharmacist for exact timing).",
-      hi: "{B} से {A} का असर कम हो जाता है। कम से कम 2-3 घंटे का अंतर रखें (सही समय फार्मासिस्ट से पूछें)।",
-      bh: "{B} से {A} के असर कम हो जाला। कम से कम 2-3 घंटा के अंतर राखीं (सही समय फार्मासिस्ट से पूछीं)।",
-    },
-  },
-  {
-    id: "levo_mineral", kind: "pair", a: /levothyroxine|thyroxine|thyronorm|eltroxin/, b: MINERAL, sev: "medium", icons: ["⏱️"],
-    msg: {
-      en: "{B} reduces the effect of {A}. Keep at least a 4-hour gap.",
-      hi: "{B} से {A} का असर घटता है। कम से कम 4 घंटे का अंतर रखें।",
-      bh: "{B} से {A} के असर घट जाला। कम से कम 4 घंटा के अंतर राखीं।",
-    },
-  },
-  {
-    id: "nsaid_thinner", kind: "pair", a: NSAID, b: THINNER, sev: "high", icons: ["🩸"],
-    msg: {
-      en: "{A} with {B} raises the risk of bleeding. Do not take together without the doctor's advice.",
-      hi: "{A} और {B} साथ लेने से खून बहने का खतरा बढ़ता है। डॉक्टर की सलाह के बिना साथ न लें।",
-      bh: "{A} आ {B} साथे खइला से खून बहे के खतरा बढ़ जाला। डॉक्टर के सलाह बिना साथे मत खाईं।",
-    },
-  },
-  {
-    id: "nsaid_dup", kind: "dup", a: NSAID, sev: "high", icons: ["🛑"],
-    msg: {
-      en: "{A} and {B} are both pain-killers (NSAID). Together they raise the risk of stomach bleeding. Ask the doctor.",
-      hi: "{A} और {B} दोनों दर्द की दवाई (NSAID) हैं। साथ लेने से पेट में घाव/खून का खतरा है। डॉक्टर से पूछें।",
-      bh: "{A} आ {B} दूनो दर्द के दवाई (NSAID) बाड़ी सन। साथे खइला से पेट में घाव/खून के खतरा बा। डॉक्टर से पूछीं।",
-    },
-  },
-  {
-    id: "paracetamol_dup", kind: "dup", a: /paracetamol|acetaminophen/, sev: "high", icons: ["🛑"],
-    msg: {
-      en: "{A} and {B} both contain paracetamol. Together they can cross the safe daily limit and harm the liver.",
-      hi: "{A} और {B} दोनों में पैरासिटामोल है। साथ लेने से सीमा से ज़्यादा हो सकती है और लिवर को नुकसान हो सकता है।",
-      bh: "{A} आ {B} दूनो में पैरासिटामोल बा। साथे खइला से सीमा से जादे हो सकेला आ लिवर के नुकसान हो सकेला।",
-    },
-  },
-  {
-    id: "alcohol", kind: "single", a: /metronidazole|tinidazole|ornidazole|secnidazole/, sev: "high", icons: ["🍺❌"],
-    msg: {
-      en: "{A}: alcohol is strictly forbidden during the course and for 3 days after it (vomiting, palpitations).",
-      hi: "{A}: दवा के दौरान और उसके 3 दिन बाद तक शराब बिल्कुल मना है (उल्टी, घबराहट हो सकती है)।",
-      bh: "{A}: दवाई चलला के दौरान आ ओकरा 3 दिन बाद तक दारू बिल्कुल मना बा (उल्टी, घबराहट हो सकेला)।",
-    },
-  },
-  {
-    id: "milk", kind: "single", a: BINDERS, sev: "medium", icons: ["🥛❌"],
-    msg: {
-      en: "{A}: do not take with milk or curd; it weakens the medicine.",
-      hi: "{A}: दूध या दही के साथ न लें, इससे दवा का असर कम होता है।",
-      bh: "{A}: दूध भा दही के साथे मत खाईं, एसे दवाई के असर कम हो जाला।",
-    },
-  },
-];
+let cache: { at: number; models: string[] } | null = null;
 
-const SAME_SALT: M = {
-  en: "{A} and {B} contain the same medicine. Taking both doubles the dose. Confirm with the doctor.",
-  hi: "{A} और {B} में एक ही दवा है। दोनों लेने से डोज़ दोगुना हो जाएगा। डॉक्टर से पूछें।",
-  bh: "{A} आ {B} में एके दवाई बा। दूनो खइला से डोज़ दुगुना हो जाई। डॉक्टर से पूछीं।",
-};
+// Jo models is key ko sach me dikhte hain unme se behtar wale khud chun leta hai
+async function candidateModels(ai: GoogleGenAI): Promise<string[]> {
+  const out: string[] = [];
+  for (const m of [process.env.GEMINI_MODEL, process.env.GEMINI_FALLBACK_MODEL, DEFAULT_MODEL]) if (m && !out.includes(m)) out.push(m);
 
-function runSafetyRules(meds: Med[], lang: Lang): Alert[] {
-  const names = meds.map((m) => m.brandName || m.genericSalt);
-  const txt = meds.map((m) => `${m.brandName} ${m.genericSalt}`.toLowerCase());
-  const out: Alert[] = [];
-  const seen = new Set<string>();
-
-  const add = (id: string, sev: Sev, icons: string[], msg: M, idx: number[]) => {
-    const key = `${id}:${idx.join("-")}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push({
-      id, severity: sev, icons,
-      medicines: idx.map((i) => names[i]),
-      message: msg[lang].replace(/\{A\}/g, names[idx[0]]).replace(/\{B\}/g, names[idx[1]] ?? ""),
-    });
-  };
-
-  const pairsCovered = new Set<string>();
-  for (const r of RULES) {
-    const hit = txt.map((t, i) => (r.a.test(t) ? i : -1)).filter((i) => i >= 0);
-    if (r.kind === "single") hit.forEach((i) => add(r.id, r.sev, r.icons, r.msg, [i]));
-    else if (r.kind === "dup") {
-      if (hit.length >= 2) {
-        add(r.id, r.sev, r.icons, r.msg, hit.slice(0, 2));
-        pairsCovered.add(hit.slice(0, 2).sort().join("-"));
+  if (!cache || Date.now() - cache.at > 10 * 60_000) {
+    const found: { name: string; score: number }[] = [];
+    try {
+      const pager = await ai.models.list({ config: { pageSize: 100 } });
+      for await (const m of pager) {
+        const name = (m.name ?? "").replace(/^models\//, "");
+        if (!/^gemini-[\d.]+-flash/.test(name)) continue;
+        if (/image|tts|live|audio|embedding|robotics|computer|native/.test(name)) continue;
+        if (m.supportedActions && m.supportedActions.length && !m.supportedActions.includes("generateContent")) continue;
+        const v = parseFloat(name.match(/^gemini-([\d.]+)-/)?.[1] ?? "0");
+        const score = v * 10 - (/preview|exp/.test(name) ? 5 : 0) - (/lite/.test(name) ? 0.5 : 0);
+        found.push({ name, score });
       }
-    } else {
-      for (const i of hit) txt.forEach((t, j) => i !== j && r.b.test(t) && add(r.id, r.sev, r.icons, r.msg, [i, j]));
+    } catch (e) {
+      console.error("[decode] model list failed", short((e as Error)?.message ?? ""));
     }
+    found.sort((a, b) => b.score - a.score);
+    cache = { at: Date.now(), models: found.slice(0, 4).map((f) => f.name) };
   }
-
-  // Ek hi salt do baar likha ho (alag brand naam se)
-  const bySalt = new Map<string, number[]>();
-  meds.forEach((m, i) => {
-    const k = m.genericSalt.toLowerCase().replace(/[^a-z+]/g, "");
-    if (k.length > 3) bySalt.set(k, [...(bySalt.get(k) ?? []), i]);
-  });
-  bySalt.forEach((idx) => {
-    if (idx.length >= 2 && !pairsCovered.has(idx.slice(0, 2).sort().join("-")))
-      add("same_salt", "high", ["🛑"], SAME_SALT, idx.slice(0, 2));
-  });
-
-  return out.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "high" ? -1 : 1));
+  for (const m of cache.models) if (!out.includes(m)) out.push(m);
+  return out.slice(0, 5);
 }
 
 /* ------------------------------- Handlers ------------------------------- */
 
-const fail = (status: number, code: string, message: string, fallback = false) =>
-  NextResponse.json({ ok: false, code, message, fallback }, { status });
+const fail = (status: number, code: string, message: string, fallback = false, detail = "") =>
+  NextResponse.json({ ok: false, code, message, fallback, detail }, { status });
 
 const clamp = (n: unknown) => Math.max(0, Math.min(10, Number(n) || 0));
 
-// GET /api/decode -> sab theek chal raha hai ya nahi (key leak nahi hoti)
-export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    keyLoaded: Boolean(process.env.GEMINI_API_KEY),
-    model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
-  });
+// GET /api/decode            -> sab theek hai ya nahi
+// GET /api/decode?diag=1     -> kaun sa model chal raha hai, kaun sa nahi (error ke saath)
+export async function GET(req: NextRequest) {
+  const key = process.env.GEMINI_API_KEY;
+  const base = { ok: true, version: VERSION, keyLoaded: Boolean(key), keyType: key ? (key.startsWith("AQ.") ? "vertex-express" : key.startsWith("AIza") ? "ai-studio" : "unknown") : null };
+  if (req.nextUrl.searchParams.get("diag") !== "1" || !key) return NextResponse.json(base);
+
+  const scrub = (s: string) => s.split(key).join("***");
+  const ai = makeClient(key);
+  const models = await candidateModels(ai);
+  const results: Record<string, unknown>[] = [];
+  for (const model of models) {
+    const t0 = Date.now();
+    try {
+      const r = await ai.models.generateContent({ model, contents: "Reply with the single word OK" });
+      results.push({ model, ok: Boolean(r.text), ms: Date.now() - t0, reply: (r.text ?? "").slice(0, 20) });
+    } catch (e) {
+      results.push({ model, ok: false, ms: Date.now() - t0, status: (e as { status?: number })?.status ?? 0, error: scrub(short((e as Error)?.message ?? "")) });
+    }
+  }
+  return NextResponse.json({ ...base, candidates: models, results });
 }
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return fail(500, "NO_API_KEY", "Server par GEMINI_API_KEY set nahi hai.");
+  if (!apiKey) return fail(500, "NO_API_KEY", "Server par GEMINI_API_KEY set nahi hai.", true);
+  const scrub = (s: string) => s.split(apiKey).join("***");
 
   let body: { imageBase64?: string; mimeType?: string; lang?: string; mode?: string };
   try {
@@ -264,40 +172,58 @@ export async function POST(req: NextRequest) {
   if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) return fail(400, "BAD_TYPE", "Sirf JPG, PNG ya WEBP photo chalegi.");
   if (data.length > 4_000_000) return fail(413, "TOO_BIG", "Photo bahut badi hai. Compress karke bhejein.");
 
-  const ai = new GoogleGenAI({ apiKey });
-  const models = [process.env.GEMINI_MODEL ?? "gemini-3.5-flash", process.env.GEMINI_FALLBACK_MODEL].filter(Boolean) as string[];
-
+  const ai = makeClient(apiKey);
+  const models = await candidateModels(ai);
+  const deadline = Date.now() + 48_000;
+  const attempts: string[] = [];
   let raw = "";
   let usedModel = "";
-  for (const model of models) {
-    try {
-      const res = await ai.models.generateContent({
-        model,
-        contents: [{ role: "user", parts: [{ inlineData: { mimeType, data } }, { text: "Decode this image as instructed." }] }],
-        config: {
-          systemInstruction: buildSystem(lang, mode),
-          responseMimeType: "application/json",
-          responseSchema: RESPONSE_SCHEMA,
-          temperature: 0.1,
-        },
-      });
-      raw = res.text ?? "";
-      usedModel = model;
-      if (raw) break;
-    } catch (e) {
-      const status = (e as { status?: number })?.status ?? 0;
-      console.error(`[decode] ${model} failed`, status, (e as Error)?.message);
-      if (status === 429 || status >= 500 || status === 0) continue; // agla model try karo
-      return fail(502, "AI_ERROR", "AI se jawab nahi mila. Dobara try karein.", true);
+  let keyDead = false;
+
+  outer: for (const model of models) {
+    for (let k = 0; k < 2; k++) {
+      if (Date.now() > deadline) break outer;
+      try {
+        const res = await ai.models.generateContent({
+          model,
+          contents: [{ role: "user", parts: [{ inlineData: { mimeType, data } }, { text: "Decode this image as instructed." }] }],
+          config: {
+            systemInstruction: buildSystem(lang, mode),
+            responseMimeType: "application/json",
+            responseSchema: RESPONSE_SCHEMA,
+            temperature: 0.1,
+          },
+        });
+        const text = res.text ?? "";
+        if (text) { raw = text; usedModel = model; break outer; }
+        attempts.push(`${model}: empty reply (${res.candidates?.[0]?.finishReason ?? "no reason"})`);
+        break; // khaali jawab pe dobara nahi, agla model
+      } catch (e) {
+        const status = (e as { status?: number })?.status ?? 0;
+        attempts.push(`${model}: ${status} ${scrub(short((e as Error)?.message ?? ""))}`);
+        if (status === 401 || status === 403) { keyDead = true; break outer; }
+        if ((status === 429 || status === 503 || status === 500 || status === 0) && k === 0) { await sleep(1500); continue; }
+        break; // 400/404 etc: agla model
+      }
     }
   }
-  if (!raw) return fail(503, "AI_UNAVAILABLE", "AI abhi busy hai. Sample parchi try karein.", true);
 
-  let parsed: { isMedicalImage?: boolean; readable?: boolean; summarySpeech?: string; medicines?: Med[] };
+  if (!raw) {
+    const all = attempts.join(" | ");
+    console.error("[decode] all attempts failed:", all);
+    let code = "AI_UNAVAILABLE";
+    let msg = "AI abhi jawab nahi de pa raha. Thodi der baad try karein, ya niche se Demo parchi dekhein.";
+    if (keyDead || /API key|API_KEY|PERMISSION_DENIED/i.test(all)) { code = "BAD_KEY"; msg = "API key kaam nahi kar rahi (galat ya band). Naya key banakar Vercel me daalein."; }
+    else if (/\b429\b|RESOURCE_EXHAUSTED|quota/i.test(all)) { code = "RATE_LIMIT"; msg = "AI ki muft limit abhi poori ho gayi hai. 1 minute baad try karein, ya niche se Demo parchi dekhein."; }
+    else if (/\b404\b|not found/i.test(all) && !/\b(429|503)\b/.test(all)) { code = "NO_MODEL"; msg = "Ye AI model is key par available nahi hai. Technical details me dekhein."; }
+    return fail(503, code, msg, true, all.slice(0, 700));
+  }
+
+  let parsed: { isMedicalImage?: boolean; readable?: boolean; summarySpeech?: string; medicines?: Medicine[] };
   try {
     parsed = JSON.parse(raw.replace(/^```json|```$/g, "").trim());
   } catch {
-    return fail(502, "BAD_AI_JSON", "Jawab samajh nahi aaya. Saaf photo ke saath dobara try karein.", true);
+    return fail(502, "BAD_AI_JSON", "Jawab samajh nahi aaya. Saaf photo ke saath dobara try karein.", true, short(raw));
   }
 
   const medicines = (parsed.medicines ?? []).slice(0, 15).map((m) => ({
@@ -305,7 +231,7 @@ export async function POST(req: NextRequest) {
     schedule: { morning: clamp(m.schedule?.morning), afternoon: clamp(m.schedule?.afternoon), night: clamp(m.schedule?.night) },
     foodWarnings: m.foodWarnings ?? [],
     needsCheck: Boolean(m.needsCheck),
-  }));
+  })) as Medicine[];
 
   if (!parsed.isMedicalImage || medicines.length === 0)
     return fail(422, "NOT_READABLE", "Photo me dawai ya parchi nahi dikhi. Saaf aur seedhi photo khinchein, ya dawai ke patte ke peeche ki photo lein.");
