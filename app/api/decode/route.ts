@@ -8,7 +8,7 @@ import type { Lang, Medicine } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const VERSION = "0.3";
+const VERSION = "0.4";
 const DEFAULT_MODEL = "gemini-3.5-flash";
 
 const LANG_NAME: Record<Lang, string> = {
@@ -83,22 +83,32 @@ ${mode === "strip"
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const short = (s: string) => s.replace(/\s+/g, " ").slice(0, 160);
 
-function makeClient(key: string) {
+type Mode = "gemini" | "vertex";
+
+// AI Studio ab "AQ." wali (authorization) keys deta hai – ye Gemini API (generativelanguage) ke liye hi hain.
+// Isliye pehle hamesha Gemini API try hota hai; "AQ." key par Vertex express sirf doosra rasta (backup) hai.
+function makeClient(key: string, mode: Mode) {
   const httpOptions = { timeout: 20000 };
-  // "AQ." se shuru hone wali keys Vertex AI express keys hoti hain; AI Studio ki keys "AIza" se shuru hoti hain.
-  return key.startsWith("AQ.")
+  return mode === "vertex"
     ? new GoogleGenAI({ vertexai: true, apiKey: key, httpOptions })
     : new GoogleGenAI({ apiKey: key, httpOptions });
 }
 
-let cache: { at: number; models: string[] } | null = null;
+let goodMode: Mode | null = null; // jo rasta chal gaya, use yaad rakho
+const modesFor = (key: string): Mode[] => {
+  const all: Mode[] = key.startsWith("AQ.") ? ["gemini", "vertex"] : ["gemini"];
+  return goodMode && all.includes(goodMode) ? [goodMode, ...all.filter((m) => m !== goodMode)] : all;
+};
+
+const cache: Partial<Record<Mode, { at: number; models: string[] }>> = {};
 
 // Jo models is key ko sach me dikhte hain unme se behtar wale khud chun leta hai
-async function candidateModels(ai: GoogleGenAI): Promise<string[]> {
+async function candidateModels(ai: GoogleGenAI, mode: Mode): Promise<string[]> {
   const out: string[] = [];
   for (const m of [process.env.GEMINI_MODEL, process.env.GEMINI_FALLBACK_MODEL, DEFAULT_MODEL]) if (m && !out.includes(m)) out.push(m);
 
-  if (!cache || Date.now() - cache.at > 10 * 60_000) {
+  const hit = cache[mode];
+  if (!hit || Date.now() - hit.at > 10 * 60_000) {
     const found: { name: string; score: number }[] = [];
     try {
       const pager = await ai.models.list({ config: { pageSize: 100 } });
@@ -115,9 +125,9 @@ async function candidateModels(ai: GoogleGenAI): Promise<string[]> {
       console.error("[decode] model list failed", short((e as Error)?.message ?? ""));
     }
     found.sort((a, b) => b.score - a.score);
-    cache = { at: Date.now(), models: found.slice(0, 4).map((f) => f.name) };
+    cache[mode] = { at: Date.now(), models: found.slice(0, 4).map((f) => f.name) };
   }
-  for (const m of cache.models) if (!out.includes(m)) out.push(m);
+  for (const m of cache[mode]?.models ?? []) if (!out.includes(m)) out.push(m);
   return out.slice(0, 5);
 }
 
@@ -129,26 +139,29 @@ const fail = (status: number, code: string, message: string, fallback = false, d
 const clamp = (n: unknown) => Math.max(0, Math.min(10, Number(n) || 0));
 
 // GET /api/decode            -> sab theek hai ya nahi
-// GET /api/decode?diag=1     -> kaun sa model chal raha hai, kaun sa nahi (error ke saath)
+// GET /api/decode?diag=1     -> kaun sa rasta (mode) aur model chal raha hai, kaun sa nahi (error ke saath)
 export async function GET(req: NextRequest) {
   const key = process.env.GEMINI_API_KEY;
-  const base = { ok: true, version: VERSION, keyLoaded: Boolean(key), keyType: key ? (key.startsWith("AQ.") ? "vertex-express" : key.startsWith("AIza") ? "ai-studio" : "unknown") : null };
+  const base = { ok: true, version: VERSION, keyLoaded: Boolean(key), keyType: key ? (key.startsWith("AQ.") ? "auth-key (AQ.)" : key.startsWith("AIza") ? "standard-key (AIza)" : "unknown") : null };
   if (req.nextUrl.searchParams.get("diag") !== "1" || !key) return NextResponse.json(base);
 
   const scrub = (s: string) => s.split(key).join("***");
-  const ai = makeClient(key);
-  const models = await candidateModels(ai);
   const results: Record<string, unknown>[] = [];
-  for (const model of models) {
-    const t0 = Date.now();
-    try {
-      const r = await ai.models.generateContent({ model, contents: "Reply with the single word OK" });
-      results.push({ model, ok: Boolean(r.text), ms: Date.now() - t0, reply: (r.text ?? "").slice(0, 20) });
-    } catch (e) {
-      results.push({ model, ok: false, ms: Date.now() - t0, status: (e as { status?: number })?.status ?? 0, error: scrub(short((e as Error)?.message ?? "")) });
+  for (const mode of modesFor(key)) {
+    const ai = makeClient(key, mode);
+    const models = (await candidateModels(ai, mode)).slice(0, 3);
+    for (const model of models) {
+      const t0 = Date.now();
+      try {
+        const r = await ai.models.generateContent({ model, contents: "Reply with the single word OK" });
+        if (r.text) goodMode = mode;
+        results.push({ mode, model, ok: Boolean(r.text), ms: Date.now() - t0, reply: (r.text ?? "").slice(0, 20) });
+      } catch (e) {
+        results.push({ mode, model, ok: false, ms: Date.now() - t0, status: (e as { status?: number })?.status ?? 0, error: scrub(short((e as Error)?.message ?? "")) });
+      }
     }
   }
-  return NextResponse.json({ ...base, candidates: models, results });
+  return NextResponse.json({ ...base, results });
 }
 
 export async function POST(req: NextRequest) {
@@ -164,7 +177,7 @@ export async function POST(req: NextRequest) {
   }
 
   const lang: Lang = body.lang === "en" || body.lang === "bh" ? body.lang : "hi";
-  const mode = body.mode === "strip" ? "strip" : "prescription";
+  const scanMode = body.mode === "strip" ? "strip" : "prescription";
   const mimeType = body.mimeType ?? "image/jpeg";
   const data = (body.imageBase64 ?? "").replace(/^data:.*?;base64,/, "");
 
@@ -172,41 +185,45 @@ export async function POST(req: NextRequest) {
   if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) return fail(400, "BAD_TYPE", "Sirf JPG, PNG ya WEBP photo chalegi.");
   if (data.length > 4_000_000) return fail(413, "TOO_BIG", "Photo bahut badi hai. Compress karke bhejein.");
 
-  const ai = makeClient(apiKey);
-  const models = await candidateModels(ai);
   const deadline = Date.now() + 48_000;
   const attempts: string[] = [];
   let raw = "";
   let usedModel = "";
-  let keyDead = false;
+  let authFails = 0;
+  const modes = modesFor(apiKey);
 
-  outer: for (const model of models) {
-    for (let k = 0; k < 2; k++) {
-      if (Date.now() > deadline) break outer;
-      try {
-        const res = await ai.models.generateContent({
-          model,
-          contents: [{ role: "user", parts: [{ inlineData: { mimeType, data } }, { text: "Decode this image as instructed." }] }],
-          config: {
-            systemInstruction: buildSystem(lang, mode),
-            responseMimeType: "application/json",
-            responseSchema: RESPONSE_SCHEMA,
-            temperature: 0.1,
-          },
-        });
-        const text = res.text ?? "";
-        if (text) { raw = text; usedModel = model; break outer; }
-        attempts.push(`${model}: empty reply (${res.candidates?.[0]?.finishReason ?? "no reason"})`);
-        break; // khaali jawab pe dobara nahi, agla model
-      } catch (e) {
-        const status = (e as { status?: number })?.status ?? 0;
-        attempts.push(`${model}: ${status} ${scrub(short((e as Error)?.message ?? ""))}`);
-        if (status === 401 || status === 403) { keyDead = true; break outer; }
-        if ((status === 429 || status === 503 || status === 500 || status === 0) && k === 0) { await sleep(1500); continue; }
-        break; // 400/404 etc: agla model
+  modeLoop: for (const mode of modes) {
+    const ai = makeClient(apiKey, mode);
+    const models = await candidateModels(ai, mode);
+    for (const model of models) {
+      for (let k = 0; k < 2; k++) {
+        if (Date.now() > deadline) break modeLoop;
+        try {
+          const res = await ai.models.generateContent({
+            model,
+            contents: [{ role: "user", parts: [{ inlineData: { mimeType, data } }, { text: "Decode this image as instructed." }] }],
+            config: {
+              systemInstruction: buildSystem(lang, scanMode),
+              responseMimeType: "application/json",
+              responseSchema: RESPONSE_SCHEMA,
+              temperature: 0.1,
+            },
+          });
+          const text = res.text ?? "";
+          if (text) { raw = text; usedModel = model; goodMode = mode; break modeLoop; }
+          attempts.push(`${mode}/${model}: empty reply (${res.candidates?.[0]?.finishReason ?? "no reason"})`);
+          break; // khaali jawab pe dobara nahi, agla model
+        } catch (e) {
+          const status = (e as { status?: number })?.status ?? 0;
+          attempts.push(`${mode}/${model}: ${status} ${scrub(short((e as Error)?.message ?? ""))}`);
+          if (status === 401 || status === 403) { authFails++; continue modeLoop; } // is rasta pe key nahi chali, doosra rasta try karo
+          if ((status === 429 || status === 503 || status === 500 || status === 0) && k === 0) { await sleep(1500); continue; }
+          break; // 400/404 etc: agla model
+        }
       }
     }
   }
+  const keyDead = authFails >= modes.length;
 
   if (!raw) {
     const all = attempts.join(" | ");
