@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Icon, Logo, PillBox, ScanArt } from "@/components/ui";
 import { compressImage } from "@/lib/compress";
@@ -52,6 +53,12 @@ const TIMING: Record<Lang, Record<Medicine["timing"], string>> = {
 
 const VERSION = "0.3";
 
+const GENCTA: Record<Lang, { t: string; s: string }> = {
+  hi: { t: "सस्ती (जेनरिक) दवाई खोजें", s: "ब्रांड की जगह जन औषधि: वही salt, आम तौर पर 50-80% सस्ती" },
+  bh: { t: "सस्ता (जेनरिक) दवाई खोजीं", s: "ब्रांड के जगह जन औषधि: उहे salt, आमतौर पर 50-80% सस्ता" },
+  en: { t: "Find cheaper generic medicines", s: "Jan Aushadhi instead of the brand: same salt, usually 50-80% cheaper" },
+};
+
 export default function Home() {
   const [lang, setLang] = useState<Lang>("hi");
   const [mode, setMode] = useState<Mode>("prescription");
@@ -67,6 +74,18 @@ export default function Home() {
 
   useEffect(() => {
     if (result) resRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [result]);
+
+  useEffect(() => {
+    try {
+      const l = localStorage.getItem("ps_lang");
+      if (l === "hi" || l === "bh" || l === "en") setLang(l);
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { try { localStorage.setItem("ps_lang", lang); } catch { /* ignore */ } }, [lang]);
+  useEffect(() => {
+    if (!result) return;
+    try { localStorage.setItem("ps_last", JSON.stringify(result.medicines.map((m) => ({ b: m.brandName, s: m.genericSalt, f: m.form })))); } catch { /* ignore */ }
   }, [result]);
 
   async function run(file: File, l: Lang, m: Mode, sample: number | null) {
@@ -186,6 +205,11 @@ export default function Home() {
         <section>
           <h1>{t.h1}</h1>
           <p className="sub">{t.sub}</p>
+          <Link href="/generic" className="gencta">
+            <Icon name="rupee" size={28} />
+            <div><b>{GENCTA[lang].t}</b><small>{GENCTA[lang].s}</small></div>
+            <Icon name="chev" size={22} />
+          </Link>
 
           <div className="scan">
             <div className="scanTop">
