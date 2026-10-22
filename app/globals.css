@@ -141,3 +141,36 @@ footer p { margin: 2px 0; }
 .gtrust ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .gtrust li { display: flex; gap: 10px; align-items: flex-start; font-size: 16px; } .gtrust li svg { color: var(--green); margin-top: 2px; }
 .glink { display: inline-block; margin-top: 12px; color: var(--deep); font-weight: 800; }
+
+/* ---- dawai ke roop ki tasveer + result page ---- */
+.ftile { flex: none; display: grid; place-items: center; background: var(--tint); border: 1px solid var(--line); border-radius: 16px; }
+.medhead { align-items: center; gap: 12px; }
+.medhead .mt { flex: 1; min-width: 0; }
+.formchip { display: inline-block; margin-top: 6px; font-size: 12.5px; font-weight: 800; color: var(--deep); background: var(--tint); border-radius: 999px; padding: 2px 10px; }
+.langbusy { text-align: center; font-weight: 800; color: var(--deep); margin: 0 0 8px; }
+a.btn { text-decoration: none; }
+.gtop .gleft { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+/* ---- scan page (alag page: sirf animation) ---- */
+.scanpage h1 { font-size: 24px; text-align: center; margin: 6px 0 14px; }
+.rxframe { position: relative; width: min(74vw, 290px); aspect-ratio: 3 / 4; margin: 4px auto 20px; border-radius: 18px; overflow: hidden; background: #0F2F2E; box-shadow: 0 12px 32px #0A6B6247; }
+.rxframe img { width: 100%; height: 100%; object-fit: cover; display: block; filter: brightness(.7) saturate(.9); }
+.rxbeam { position: absolute; left: 0; right: 0; top: -64px; height: 64px; background: linear-gradient(to bottom, #EA580C00, #EA580C55 70%, #FDBA74d9); border-bottom: 3px solid #FDBA74; animation: rxsweep 2.2s ease-in-out infinite; }
+@keyframes rxsweep { 0% { top: -64px; } 100% { top: 100%; } }
+.rxframe .c { position: absolute; width: 34px; height: 34px; border: 0 solid #FDBA74; }
+.rxframe .tl { top: 10px; left: 10px; border-width: 4px 0 0 4px; border-top-left-radius: 10px; }
+.rxframe .tr { top: 10px; right: 10px; border-width: 4px 4px 0 0; border-top-right-radius: 10px; }
+.rxframe .bl { bottom: 10px; left: 10px; border-width: 0 0 4px 4px; border-bottom-left-radius: 10px; }
+.rxframe .br { bottom: 10px; right: 10px; border-width: 0 4px 4px 0; border-bottom-right-radius: 10px; }
+.rxframe.stopped .rxbeam { display: none; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.steps li { display: flex; gap: 12px; align-items: center; font-size: 17px; color: var(--muted); }
+.steps .dot { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); background: #fff; display: grid; place-items: center; }
+.steps li.now { color: var(--ink); font-weight: 800; }
+.steps li.now .dot { border-color: var(--orange); border-top-color: transparent; animation: spin .8s linear infinite; }
+.steps li.done { color: var(--ink); }
+.steps li.done .dot { background: var(--green); border-color: var(--green); color: #fff; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.tipbox { margin: 20px 0 0; padding: 12px 14px; background: var(--tint); border-radius: 14px; color: var(--deep); font-weight: 700; text-align: center; font-size: 16px; }
+.erract { display: grid; gap: 10px; margin-top: 12px; }
+@media (prefers-reduced-motion: reduce) { .rxbeam, .steps li.now .dot, .gmic.live { animation: none; } }
