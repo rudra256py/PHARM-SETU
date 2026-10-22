@@ -2,7 +2,7 @@
 // Place at: app/generic/page.tsx   ->  website pe  /generic
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Icon, Logo } from "@/components/ui";
+import { FormIcon, Icon, Logo } from "@/components/ui";
 import { DEFAULT_LOCATION, LANGS, janAushadhiMapsUrl } from "@/lib/config";
 import { findGeneric, saving, searchGeneric, type GenericEntry } from "@/lib/generic";
 import type { Lang } from "@/lib/types";
@@ -73,7 +73,7 @@ function GenCard({ e, label, t, mrp, setMrp }: { e: GenericEntry; label: string;
   return (
     <article className="gcard">
       <div className="gtop">
-        <span className="gbrand">{label}</span>
+        <div className="gleft"><FormIcon form={e.form} size={52} /><span className="gbrand">{label}</span></div>
         <span className="gsame"><Icon name="check" size={16} /> {t.same}</span>
       </div>
       <div className="gcmp">
