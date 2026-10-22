@@ -1,6 +1,9 @@
 // Place at: components/ui.tsx
 // PHARM SETU ki design pehchan: Logo (pul + plus), icons, dawai ka 3-khane wala dibba, scan illustration.
 
+import { LANGS } from "@/lib/config";
+import type { Lang } from "@/lib/types";
+
 const PATHS = {
   camera: ["M4 8h3l1.5-2h7L17 8h3v11H4z", "M12 9.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z"],
   image: ["M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z", "M9 8.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6z", "M4 18l5-5 4 4 3-3 4 4"],
@@ -81,5 +84,113 @@ export function ScanArt({ loop = false }: { loop?: boolean }) {
       <path d="M8 26V8h18M70 8h18v18M88 86v18H70M26 104H8V86" fill="none" stroke="#EA580C" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
       <rect className="beam" x="12" y="14" width="72" height="3" rx="1.5" fill="#EA580C" />
     </svg>
+  );
+}
+
+// Sabhi pages ka common header aur bhasha-patti
+export function AppHeader({ tag }: { tag: string }) {
+  return (
+    <header className="top">
+      <div className="brand">
+        <Logo size={44} />
+        <div className="wm">
+          <b>PHARM <i>SETU</i></b>
+          <small>{tag}</small>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export function LangBar({ lang, onChange, disabled }: { lang: Lang; onChange: (l: Lang) => void; disabled?: boolean }) {
+  return (
+    <div className="segwrap">
+      <div className="seg" role="tablist" aria-label="Language">
+        {LANGS.map((l) => (
+          <button key={l.code} role="tab" disabled={disabled} aria-selected={lang === l.code} className={lang === l.code ? "on" : ""} onClick={() => onChange(l.code)}>{l.label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Dawai ke roop ki tasveer (tablet, capsule, syrup, injection, marham, drops) – har ek ka apna rang aur aakar
+export type FormName = "tablet" | "capsule" | "syrup" | "injection" | "ointment" | "drops" | "other";
+
+export function FormIcon({ form, size = 60 }: { form: FormName | string; size?: number }) {
+  const line = "#0A6B62";
+  let art: React.ReactNode;
+  switch (form) {
+    case "capsule":
+      art = (
+        <g transform="rotate(-38 32 32)">
+          <rect x="6" y="21" width="52" height="22" rx="11" fill="#fff" stroke={line} strokeWidth="2.2" />
+          <path d="M32 21H17a11 11 0 000 22h15z" fill="#EA580C" />
+          <rect x="6" y="21" width="52" height="22" rx="11" fill="none" stroke={line} strokeWidth="2.2" />
+          <path d="M32 21v22" stroke={line} strokeWidth="2" />
+          <path d="M15 27h9" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" opacity=".55" />
+        </g>
+      );
+      break;
+    case "syrup":
+      art = (
+        <g>
+          <rect x="24" y="6" width="16" height="9" rx="2.5" fill="#EA580C" stroke={line} strokeWidth="2" />
+          <path d="M27 15h10v6l5 4v28a5 5 0 01-5 5H27a5 5 0 01-5-5V25l5-4z" fill="#fff" stroke={line} strokeWidth="2.2" strokeLinejoin="round" />
+          <path d="M23.2 34h17.6v18a4 4 0 01-4 4H27.2a4 4 0 01-4-4z" fill="#C2410C" opacity=".9" />
+          <rect x="26" y="38" width="12" height="11" rx="2" fill="#fff" />
+          <path d="M32 40.2v6.6M28.7 43.5h6.6" stroke="#0D9488" strokeWidth="2" strokeLinecap="round" />
+        </g>
+      );
+      break;
+    case "injection":
+      art = (
+        <g transform="rotate(45 32 32)">
+          <path d="M6 32h12" stroke="#64748B" strokeWidth="2.6" strokeLinecap="round" />
+          <rect x="18" y="24" width="28" height="16" rx="3.5" fill="#fff" stroke={line} strokeWidth="2.2" />
+          <rect x="20.5" y="26.5" width="15" height="11" rx="2" fill="#0D9488" opacity=".75" />
+          <path d="M24 24v4M29 24v4M34 24v4M39 24v4" stroke={line} strokeWidth="1.4" />
+          <path d="M46 32h8" stroke={line} strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M54 25v14" stroke="#EA580C" strokeWidth="3.4" strokeLinecap="round" />
+        </g>
+      );
+      break;
+    case "ointment":
+      art = (
+        <g>
+          <path d="M17 10h30l-3.2 35H20.2z" fill="#fff" stroke={line} strokeWidth="2.2" strokeLinejoin="round" />
+          <path d="M18.4 26h27.2l-1.7 19H20.1z" fill="#0D9488" />
+          <path d="M17 10h30v5H17z" fill="#CBD5D1" stroke={line} strokeWidth="2" strokeLinejoin="round" />
+          <path d="M26 31v9M32 31v9" stroke="#fff" strokeWidth="2" strokeLinecap="round" opacity=".6" />
+          <rect x="22.5" y="45" width="19" height="11" rx="3" fill="#EA580C" stroke={line} strokeWidth="2" />
+        </g>
+      );
+      break;
+    case "drops":
+      art = (
+        <g>
+          <rect x="25" y="5" width="14" height="8" rx="2.5" fill="#EA580C" stroke={line} strokeWidth="2" />
+          <path d="M28 13h8v7h-8z" fill="#fff" stroke={line} strokeWidth="2" strokeLinejoin="round" />
+          <rect x="21" y="20" width="22" height="26" rx="6" fill="#CFEFEA" stroke={line} strokeWidth="2.2" />
+          <rect x="21" y="32" width="22" height="14" rx="5" fill="#0D9488" opacity=".35" />
+          <rect x="25" y="26" width="14" height="8" rx="1.5" fill="#fff" />
+          <path d="M32 49c-3.2 4.2-4.4 6.2-4.4 8.2a4.4 4.4 0 008.8 0c0-2-1.2-4-4.4-8.2z" fill="#38BDF8" stroke={line} strokeWidth="1.8" strokeLinejoin="round" />
+        </g>
+      );
+      break;
+    default: // tablet
+      art = (
+        <g>
+          <ellipse cx="32" cy="38" rx="23" ry="11" fill="#C9D6D3" />
+          <ellipse cx="32" cy="32" rx="23" ry="11" fill="#fff" stroke={line} strokeWidth="2.2" />
+          <path d="M9.5 32h45" stroke={line} strokeWidth="2" strokeLinecap="round" opacity=".5" />
+          <path d="M18 27c4-3 9-4 14-4" stroke="#CFE5E2" strokeWidth="3" strokeLinecap="round" />
+        </g>
+      );
+  }
+  return (
+    <span className="ftile" style={{ width: size, height: size }} aria-hidden="true">
+      <svg viewBox="0 0 64 64" width={size * 0.82} height={size * 0.82}>{art}</svg>
+    </span>
   );
 }
