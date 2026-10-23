@@ -65,7 +65,7 @@ export default function ResultPage() {
     if (!result) return null;
     let brand = 0, ja = 0, n = 0;
     for (const m of result.medicines) {
-      const e = findGeneric({ brandName: m.brandName, genericSalt: m.genericSalt, form: m.form });
+      const e = findGeneric({ brandName: m.brandName, genericSalt: m.genericSalt, form: m.form, strength: m.strength });
       if (e && e.approx && e.approx > e.ja) { brand += e.approx; ja += e.ja; n++; }
     }
     return n ? { amt: Math.round(brand - ja), n } : null;
