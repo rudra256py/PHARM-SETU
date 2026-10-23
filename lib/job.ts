@@ -36,7 +36,7 @@ export function saveResult(r: StoredResult) {
   try {
     sessionStorage.setItem(KR, JSON.stringify(r));
     // /generic (sasti dawai) page isi se parchi ki dawaiyan padhta hai
-    localStorage.setItem("ps_last", JSON.stringify(r.medicines.map((m) => ({ b: m.brandName, s: m.genericSalt, f: m.form }))));
+    localStorage.setItem("ps_last", JSON.stringify(r.medicines.map((m) => ({ b: m.brandName, s: m.genericSalt, f: m.form, t: m.strength }))));
   } catch { /* ignore */ }
 }
 
