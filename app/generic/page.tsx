@@ -104,7 +104,7 @@ function GenCard({ e, label, t, mrp, setMrp }: { e: GenericEntry; label: string;
 export default function GenericPage() {
   const [lang, setLang] = useState<Lang>("hi");
   const [q, setQ] = useState("");
-  const [meds, setMeds] = useState<{ b: string; s: string; f?: string }[]>([]);
+  const [meds, setMeds] = useState<{ b: string; s: string; f?: string; t?: string | null }[]>([]);
   const [mrps, setMrps] = useState<Record<string, string>>({});
   const [listening, setListening] = useState(false);
   const [canVoice, setCanVoice] = useState(false);
@@ -123,7 +123,7 @@ export default function GenericPage() {
   useEffect(() => { try { localStorage.setItem("ps_lang", lang); } catch { /* ignore */ } }, [lang]);
 
   const rx: Row[] = useMemo(
-    () => meds.map((m, i) => ({ key: `rx${i}`, label: m.b || m.s, entry: findGeneric({ brandName: m.b, genericSalt: m.s, form: m.f }) })),
+    () => meds.map((m, i) => ({ key: `rx${i}`, label: m.b || m.s, entry: findGeneric({ brandName: m.b, genericSalt: m.s, form: m.f, strength: m.t }) })),
     [meds]
   );
   const found = useMemo(() => searchGeneric(q), [q]);
