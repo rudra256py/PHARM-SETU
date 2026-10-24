@@ -174,3 +174,22 @@ a.btn { text-decoration: none; }
 .tipbox { margin: 20px 0 0; padding: 12px 14px; background: var(--tint); border-radius: 14px; color: var(--deep); font-weight: 700; text-align: center; font-size: 16px; }
 .erract { display: grid; gap: 10px; margin-top: 12px; }
 @media (prefers-reduced-motion: reduce) { .rxbeam, .steps li.now .dot, .gmic.live { animation: none; } }
+
+/* ---- Generic button per medicine + Call Kendra ---- */
+.gmed { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: var(--greent); color: var(--green); border: 2px solid var(--green); font-size: 18px; text-decoration: none; }
+.gmed b { flex: 1; font-weight: 800; } .gmed small { font-size: 17px; font-weight: 800; }
+.gfocus { outline: 3px solid var(--teal); }
+.btn.call { background: var(--orange); color: #fff; margin-top: 10px; } .btn.call span { display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
+.btn.call span small { font-size: 14px; font-weight: 600; opacity: .95; }
+.btn.call.sm { min-height: 52px; font-size: 16px; margin-top: 10px; } .btn.call.sm span { flex-direction: row; }
+.kov { position: fixed; inset: 0; z-index: 60; background: rgba(15, 47, 46, .55); display: flex; align-items: flex-end; justify-content: center; }
+.ksheet { width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; background: var(--paper); border-radius: 22px 22px 0 0; padding: 18px 16px 24px; }
+.ksheet h3 { font-size: 22px; margin-bottom: 10px; }
+.ktell { background: var(--tint); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; font-size: 16px; } .ktell ul { margin: 6px 0 0 18px; } .ktell i { color: var(--muted); }
+.kbusy { color: var(--muted); font-size: 17px; margin: 8px 0; }
+.kitem { border: 2px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; } .kitem small { color: var(--muted); font-size: 15px; }
+.khelp { border-color: var(--teal); background: var(--tint); }
+.krow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.kcall, .kdir { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 14px; border-radius: 12px; font-weight: 800; font-size: 16px; text-decoration: none; }
+.kcall { background: var(--green); color: #fff; } .kdir { background: #fff; color: var(--deep); border: 2px solid var(--teal); } .knop { color: var(--muted); font-size: 15px; }
+.knote { font-size: 14px; color: var(--muted); margin: 6px 0 12px; }
