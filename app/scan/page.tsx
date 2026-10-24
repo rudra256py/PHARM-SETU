@@ -28,7 +28,7 @@ const T = {
   },
 };
 
-const MIN_SHOW_MS = 3600; // animation itni der zaroor dikhe, chahe AI jaldi de de
+const MIN_SHOW_MS = 1400; // animation itni der zaroor dikhe, chahe AI jaldi de de
 
 export default function ScanPage() {
   const router = useRouter();
@@ -43,12 +43,14 @@ export default function ScanPage() {
   const run = useCallback((j: Job) => {
     setErr(null); setStep(0);
     const t0 = Date.now();
-    const tick = setInterval(() => setStep((s) => Math.min(s + 1, 3)), 850);
+    const tick = setInterval(() => setStep((s) => Math.min(s + 1, 2)), 850);
     decodeJob(j).then(async (r) => {
       const wait = Math.max(0, MIN_SHOW_MS - (Date.now() - t0));
       await new Promise((res) => setTimeout(res, wait));
       clearInterval(tick);
       if (r.ok) {
+        setStep(3); // Suraksha Chakra step: shown only now, when the AI has really finished (the rule check itself takes <1 ms)
+        await new Promise((res) => setTimeout(res, 600));
         saveResult(r.data);
         setStep(5);
         setTimeout(() => router.replace("/result"), 600);
