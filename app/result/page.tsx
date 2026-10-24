@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader, FormIcon, Icon, LangBar, PillBox } from "@/components/ui";
 import { DEFAULT_LOCATION, LANGS, janAushadhiMapsUrl } from "@/lib/config";
+import CallKendra, { type KendraItem } from "@/components/CallKendra";
 import { findGeneric } from "@/lib/generic";
 import { decodeJob, loadJob, loadResult, saveResult, updateJobLang, type StoredResult } from "@/lib/job";
 import type { Lang, Medicine } from "@/lib/types";
@@ -39,6 +40,8 @@ const T = {
   },
 };
 
+const GENBTN: Record<Lang, string> = { hi: "जेनेरिक दवा", bh: "जेनेरिक दवाई", en: "Generic medicine" };
+
 const TIMING: Record<Lang, Record<Medicine["timing"], string>> = {
   hi: { empty_stomach: "खाली पेट", before_food: "खाने से पहले", with_food: "खाने के साथ", after_food: "खाने के बाद", any: "कभी भी" },
   bh: { empty_stomach: "खाली पेट", before_food: "खाए से पहिले", with_food: "खाए के साथे", after_food: "खाए के बाद", any: "कबो" },
@@ -70,6 +73,13 @@ export default function ResultPage() {
     }
     return n ? { amt: Math.round(brand - ja), n } : null;
   }, [result]);
+
+  // Jan Aushadhi substitute for each prescribed medicine (same salt + strength), and what to tell the Kendra on the phone
+  const gens = useMemo(() => (result ? result.medicines.map((m) => findGeneric({ brandName: m.brandName, genericSalt: m.genericSalt, form: m.form, strength: m.strength })) : []), [result]);
+  const kendraItems: KendraItem[] = useMemo(
+    () => (result ? result.medicines.map((m, i) => (gens[i] ? { name: gens[i]!.name, code: gens[i]!.code } : { name: m.genericSalt || m.brandName })) : []),
+    [result, gens]
+  );
 
   // Bhasha badalne par wahi photo dobara usi bhasha me padhi jati hai (offline demo me turant)
   async function changeLang(l: Lang) {
@@ -181,9 +191,16 @@ export default function ResultPage() {
               </div>
               <p className="sig"><b>{t.written}:</b> {m.sigExplained}</p>
               {m.needsCheck && <p className="check">{t.check}</p>}
+              <Link href={`/generic?m=${i}`} className="gmed">
+                <Icon name="rupee" size={22} />
+                <b>{GENBTN[lang]}</b>
+                {gens[i] && <small>₹{gens[i]!.ja}</small>}
+                <Icon name="chev" size={20} />
+              </Link>
             </article>
           ))}
 
+          <CallKendra lang={lang} items={kendraItems} />
           <button className="btn map" onClick={openMap}><Icon name="pin" size={24} /><span>{t.map}</span></button>
           <Link href="/" className="btn ghost"><Icon name="camera" size={24} /><span>{t.again}</span></Link>
         </section>
