@@ -2,6 +2,7 @@
 // Place at: app/generic/page.tsx   ->  website pe  /generic
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import CallKendra from "@/components/CallKendra";
 import { FormIcon, Icon, Logo } from "@/components/ui";
 import { DEFAULT_LOCATION, LANGS, janAushadhiMapsUrl } from "@/lib/config";
 import { findGeneric, saving, searchGeneric, type GenericEntry } from "@/lib/generic";
@@ -66,12 +67,12 @@ type Rec = {
 
 const rupee = (n: number) => "₹" + (Math.round(n * 100) / 100).toFixed(n % 1 === 0 ? 0 : 2);
 
-function GenCard({ e, label, t, mrp, setMrp }: { e: GenericEntry; label: string; t: (typeof T)["hi"]; mrp: string; setMrp: (v: string) => void }) {
+function GenCard({ e, label, t, mrp, setMrp, lang, hl = false }: { e: GenericEntry; label: string; t: (typeof T)["hi"]; mrp: string; setMrp: (v: string) => void; lang: Lang; hl?: boolean }) {
   const entered = parseFloat(mrp);
   const brand = entered > 0 ? entered : e.approx;
   const s = brand ? saving(brand, e.ja) : null;
   return (
-    <article className="gcard">
+    <article className={"gcard" + (hl ? " gfocus" : "")}>
       <div className="gtop">
         <div className="gleft"><FormIcon form={e.form} size={52} /><span className="gbrand">{label}</span></div>
         <span className="gsame"><Icon name="check" size={16} /> {t.same}</span>
@@ -97,6 +98,7 @@ function GenCard({ e, label, t, mrp, setMrp }: { e: GenericEntry; label: string;
       </label>
       <p className="gname"><Icon name="pill" size={16} /> {e.name} <i>· {t.code}: #{e.code}</i></p>
       {e.care && <p className="gcare"><Icon name="alert" size={18} /> {t.care}</p>}
+      <CallKendra lang={lang} small items={[{ name: e.name, code: e.code }]} />
     </article>
   );
 }
@@ -105,6 +107,7 @@ export default function GenericPage() {
   const [lang, setLang] = useState<Lang>("hi");
   const [q, setQ] = useState("");
   const [meds, setMeds] = useState<{ b: string; s: string; f?: string; t?: string | null }[]>([]);
+  const [focus, setFocus] = useState<number | null>(null);
   const [mrps, setMrps] = useState<Record<string, string>>({});
   const [listening, setListening] = useState(false);
   const [canVoice, setCanVoice] = useState(false);
@@ -116,6 +119,8 @@ export default function GenericPage() {
       if (l === "hi" || l === "bh" || l === "en") setLang(l);
       const raw = localStorage.getItem("ps_last");
       if (raw) setMeds(JSON.parse(raw));
+      const fm = new URLSearchParams(window.location.search).get("m"); // ?m=2 -> open with the 3rd medicine first
+      if (fm && /^\d+$/.test(fm)) setFocus(Number(fm));
     } catch { /* storage band ho to bhi page chalega */ }
     const w = window as unknown as { webkitSpeechRecognition?: unknown; SpeechRecognition?: unknown };
     setCanVoice(Boolean(w.webkitSpeechRecognition || w.SpeechRecognition));
@@ -197,7 +202,7 @@ export default function GenericPage() {
           <section>
             {found.length === 0 && <p className="gnone">{t.nores}</p>}
             {found.map((e) => (
-              <GenCard key={e.code} e={e} label={e.brands[0] ? e.brands[0].replace(/\b\w/g, (c) => c.toUpperCase()) : e.name} t={t} mrp={mrps["s" + e.code] ?? ""} setMrp={(v) => setMrps((p) => ({ ...p, ["s" + e.code]: v }))} />
+              <GenCard lang={lang} key={e.code} e={e} label={e.brands[0] ? e.brands[0].replace(/\b\w/g, (c) => c.toUpperCase()) : e.name} t={t} mrp={mrps["s" + e.code] ?? ""} setMrp={(v) => setMrps((p) => ({ ...p, ["s" + e.code]: v }))} />
             ))}
           </section>
         )}
@@ -212,9 +217,9 @@ export default function GenericPage() {
                 <span>{t.of} {rupee(totals.brand)} → {t.pays} {rupee(totals.ja)} ({totals.pct}% {t.cheaper})</span>
               </div>
             )}
-            {rx.map((r) =>
+            {[...rx].sort((a, b) => Number(b.key === "rx" + focus) - Number(a.key === "rx" + focus)).map((r) =>
               r.entry ? (
-                <GenCard key={r.key} e={r.entry} label={r.label} t={t} mrp={mrps[r.key] ?? ""} setMrp={(v) => setMrps((p) => ({ ...p, [r.key]: v }))} />
+                <GenCard lang={lang} hl={r.key === "rx" + focus} key={r.key} e={r.entry} label={r.label} t={t} mrp={mrps[r.key] ?? ""} setMrp={(v) => setMrps((p) => ({ ...p, [r.key]: v }))} />
               ) : null
             )}
             {unmatched.map((r) => (
@@ -235,6 +240,7 @@ export default function GenericPage() {
           <a className="glink" href="https://janaushadhi.gov.in" target="_blank" rel="noopener noreferrer">{t.official}</a>
         </section>
 
+        <CallKendra lang={lang} items={rx.flatMap((r) => (r.entry ? [{ name: r.entry.name, code: r.entry.code }] : []))} />
         <button className="btn map" onClick={openMap}><Icon name="pin" size={26} /><span>{t.map}</span></button>
         <p className="gwarn"><Icon name="alert" size={18} /> {t.askDoc}</p>
         <p className="note">{t.disc}</p>
