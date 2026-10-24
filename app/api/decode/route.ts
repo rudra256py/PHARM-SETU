@@ -1,6 +1,6 @@
 // PHARM SETU – Core engine: parchi/strip photo -> structured medicines + Suraksha Chakra alerts
 // Place at: app/api/decode/route.ts
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { runSafetyRules } from "@/lib/safety";
 import type { Lang, Medicine } from "@/lib/types";
@@ -63,6 +63,7 @@ STRICT RULES
 - If the image has no medicine/prescription, set isMedicalImage=false, readable=false, medicines=[].
 - genericSalt = generic composition with strength, in English (e.g. "Pantoprazole 40mg"). If a combination, join with " + ".
 - Do NOT diagnose or suggest changing any dose.
+- Keep it SHORT (speed matters): purpose max 10 words, sigExplained max 20 words, speech max 25 words, summarySpeech max 15 words.
 - sigOriginal = dosage shorthand exactly as written (e.g. "1 BD PC", "1-0-1", "SOS").
 - sigExplained MUST keep the medical jargon and put its plain meaning in brackets right after it,
   e.g. "BD (subah-shaam)", "PC (khane ke baad)", "SOS (zaroorat padne par)", "HS (raat ko sote waqt)", "AC (khane se pehle)" -
@@ -103,9 +104,10 @@ const modesFor = (key: string): Mode[] => {
 const cache: Partial<Record<Mode, { at: number; models: string[] }>> = {};
 
 // Jo models is key ko sach me dikhte hain unme se behtar wale khud chun leta hai
-async function candidateModels(ai: GoogleGenAI, mode: Mode): Promise<string[]> {
+async function candidateModels(ai: GoogleGenAI, mode: Mode, discover = true): Promise<string[]> {
   const out: string[] = [];
   for (const m of [process.env.GEMINI_MODEL, process.env.GEMINI_FALLBACK_MODEL, DEFAULT_MODEL]) if (m && !out.includes(m)) out.push(m);
+  if (!discover) return out; // fast path: no extra "list models" round-trip before the scan
 
   const hit = cache[mode];
   if (!hit || Date.now() - hit.at > 10 * 60_000) {
@@ -192,10 +194,14 @@ export async function POST(req: NextRequest) {
   let authFails = 0;
   const modes = modesFor(apiKey);
 
+  const tried = new Set<string>();
+  for (const discover of [false, true]) {
+  if (raw) break;
   modeLoop: for (const mode of modes) {
     const ai = makeClient(apiKey, mode);
-    const models = await candidateModels(ai, mode);
+    const models = (await candidateModels(ai, mode, discover)).filter((m) => !tried.has(`${mode}/${m}`));
     for (const model of models) {
+      tried.add(`${mode}/${model}`);
       for (let k = 0; k < 2; k++) {
         if (Date.now() > deadline) break modeLoop;
         try {
@@ -207,6 +213,7 @@ export async function POST(req: NextRequest) {
               responseMimeType: "application/json",
               responseSchema: RESPONSE_SCHEMA,
               temperature: 0.1,
+              ...(/^gemini-3/.test(model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
             },
           });
           const text = res.text ?? "";
@@ -217,11 +224,12 @@ export async function POST(req: NextRequest) {
           const status = (e as { status?: number })?.status ?? 0;
           attempts.push(`${mode}/${model}: ${status} ${scrub(short((e as Error)?.message ?? ""))}`);
           if (status === 401 || status === 403) { authFails++; continue modeLoop; } // is rasta pe key nahi chali, doosra rasta try karo
-          if ((status === 429 || status === 503 || status === 500 || status === 0) && k === 0) { await sleep(1500); continue; }
+          if ((status === 429 || status === 503 || status === 500 || status === 0) && k === 0) { await sleep(600); continue; }
           break; // 400/404 etc: agla model
         }
       }
     }
+  }
   }
   const keyDead = authFails >= modes.length;
 
