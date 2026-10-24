@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
               responseMimeType: "application/json",
               responseSchema: RESPONSE_SCHEMA,
               temperature: 0.1,
-              ...(/^gemini-3/.test(model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+              ...(/^gemini-3/.test(model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.MEDIUM } } : {}),
             },
           });
           const text = res.text ?? "";
