@@ -4,7 +4,7 @@ export type Parsed = { ing: string[]; pairs: string[]; rel: boolean };
 
 const STR = /(\d+(?:\.\d+)?)\s*(mg|mcg|µg|ug|gram|gm|g|ml|iu|%|units?)(?![a-z])/g;
 const W: Record<string, number> = { mg: 1e3, mcg: 1, "µg": 1, ug: 1, g: 1e6, gm: 1e6, gram: 1e6 };
-const NOISE = new Set("ip bp usp tablet tablets tab tabs capsule capsules cap caps syrup suspension injection inj solution gel cream ointment drops oral film coated enteric gastro resistant gastro-resistant sr er xr cr mr dispersible chewable prolonged release extended sustained modified controlled soft gelatin per dried activated anhydrous precipitated eq equivalent to of the in ir pack drug code".split(" "));
+const NOISE = new Set("each contains containing contain ip bp usp tablet tablets tab tabs capsule capsules cap caps syrup suspension injection inj solution gel cream ointment drops oral film coated enteric gastro resistant gastro-resistant sr er xr cr mr dispersible chewable prolonged release extended sustained modified controlled soft gelatin per dried activated anhydrous precipitated eq equivalent to of the in ir pack drug code".split(" "));
 const TRAIL = new Set("hydrochloride hcl hydrobromide sodium potassium besylate besilate maleate mesylate medoxomil calcium dihydrate trihydrate monohydrate hydrate".split(" "));
 const SYN: Record<string, string> = { acetaminophen: "paracetamol", sulphamethoxazole: "sulfamethoxazole", amoxycillin: "amoxicillin", cetrizine: "cetirizine", levocetrizine: "levocetirizine", thyroxine: "levothyroxine", "levo-thyroxine": "levothyroxine", mefanamic: "mefenamic", aluminum: "aluminium", simethicone: "dimethicone", isapgol: "ispaghula", ispaghula: "ispaghula" };
 
