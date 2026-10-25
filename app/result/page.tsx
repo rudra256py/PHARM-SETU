@@ -40,6 +40,20 @@ const T = {
   },
 };
 
+// What the Kendra is asked for: product name + code, and roughly how many tablets/capsules (only when the prescription states the days).
+function toItem(m: Medicine, g: GenericEntry | null): KendraItem {
+  const perDay = m.schedule.morning + m.schedule.afternoon + m.schedule.night;
+  const days = m.durationDays ?? 0;
+  const qty = (m.form === "tablet" || m.form === "capsule") && days > 0 && perDay > 0 ? Math.ceil(perDay * days) : 0;
+  return { name: g ? g.name : m.genericSalt || m.brandName, code: g?.code, qty: qty > 0 && qty <= 500 ? qty : undefined, unit: m.form === "capsule" ? "capsule" : "tablet" };
+}
+
+const VERIFYBTN: Record<Lang, { t: string; s: string }> = {
+  hi: { t: "दुकान पर पट्टी जाँचें", s: "मिली हुई पट्टी की फोटो लें और पर्ची से मिलाएँ" },
+  bh: { t: "दोकान पर पट्टी जाँचीं", s: "मिलल पट्टी के फोटो लीं आ पर्ची से मिलाईं" },
+  en: { t: "Verify strips at the counter", s: "Photo the strips you got and match them to the prescription" },
+};
+
 const GENBTN: Record<Lang, string> = { hi: "जेनेरिक दवा", bh: "जेनेरिक दवाई", en: "Generic medicine" };
 
 const SUBST: Record<Lang, { title: string; save: string; none: string; code: string }> = {
@@ -102,7 +116,7 @@ export default function ResultPage() {
   // Jan Aushadhi substitute for each prescribed medicine (same salt + strength), and what to tell the Kendra on the phone
   const gens = useMemo(() => (result ? result.medicines.map((m) => findGeneric({ brandName: m.brandName, genericSalt: m.genericSalt, form: m.form, strength: m.strength })) : []), [result]);
   const kendraItems: KendraItem[] = useMemo(
-    () => (result ? result.medicines.map((m, i) => (gens[i] ? { name: gens[i]!.name, code: gens[i]!.code } : { name: m.genericSalt || m.brandName })) : []),
+    () => (result ? result.medicines.map((m, i) => toItem(m, gens[i] ?? null)) : []),
     [result, gens]
   );
 
@@ -227,6 +241,10 @@ export default function ResultPage() {
           ))}
 
           <CallKendra lang={lang} items={kendraItems} />
+          <Link href="/verify" className="btn verify">
+            <Icon name="shield" size={26} />
+            <span>{VERIFYBTN[lang].t}<small>{VERIFYBTN[lang].s}</small></span>
+          </Link>
           <button className="btn map" onClick={openMap}><Icon name="pin" size={24} /><span>{t.map}</span></button>
           <Link href="/" className="btn ghost"><Icon name="camera" size={24} /><span>{t.again}</span></Link>
         </section>
