@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "build:data": "tsx scripts/build-generics.ts",
-    "test:data": "tsx scripts/test-generics.ts"
+    "test:data": "tsx scripts/test-generics.ts",
+    "test:verify": "tsx scripts/test-verify.ts"
   },
   "dependencies": {
     "@google/genai": "^2.30.0",
