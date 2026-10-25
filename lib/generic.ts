@@ -43,7 +43,11 @@ const formOk = (a: Form, b?: string) => !b || a === b || a === "other" || b === 
 const curatedFirst = (a: Row, b: Row) => Number(!!b.approx) - Number(!!a.approx);
 
 // Prescription medicine -> the Jan Aushadhi product with the SAME composition, strength and release type (else null).
-export function findGeneric(m: Pick<Medicine, "brandName" | "genericSalt"> & { form?: string; strength?: string | null }): GenericEntry | null {
+type FindIn = Pick<Medicine, "brandName" | "genericSalt"> & { form?: string; strength?: string | null };
+export function findGeneric(m: FindIn): GenericEntry | null {
+  try { return findGenericUnsafe(m); } catch { return null; } // a matcher problem must never take the page down
+}
+function findGenericUnsafe(m: FindIn): GenericEntry | null {
   const salt = m.genericSalt || "";
   let p = parseSalt(salt);
   if (p.ing.length === 1 && p.pairs[0].endsWith(":") && m.strength) p = parseSalt(`${salt} ${m.strength}`);
