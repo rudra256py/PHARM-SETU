@@ -193,3 +193,10 @@ a.btn { text-decoration: none; }
 .kcall, .kdir { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 14px; border-radius: 12px; font-weight: 800; font-size: 16px; text-decoration: none; }
 .kcall { background: var(--green); color: #fff; } .kdir { background: #fff; color: var(--deep); border: 2px solid var(--teal); } .knop { color: var(--muted); font-size: 15px; }
 .knote { font-size: 14px; color: var(--muted); margin: 6px 0 12px; }
+
+/* ---- Automatic Jan Aushadhi substitute inside each medicine card ---- */
+.subst { margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: var(--greent); border: 2px dashed var(--green); display: flex; flex-direction: column; gap: 2px; }
+.subst small { color: var(--green); font-weight: 800; font-size: 14px; } .subst b { font-size: 17px; line-height: 1.3; }
+.subst .srow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; } .subst strong { font-size: 24px; color: var(--green); }
+.subst span { color: var(--muted); font-size: 15px; } .subst em { font-style: normal; font-weight: 800; color: var(--green); font-size: 16px; }
+.subst.none { background: transparent; border-color: var(--line); color: var(--muted); font-size: 15px; }
