@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader, FormIcon, Icon, LangBar, PillBox } from "@/components/ui";
 import { DEFAULT_LOCATION, LANGS, janAushadhiMapsUrl } from "@/lib/config";
 import CallKendra, { type KendraItem } from "@/components/CallKendra";
-import { findGeneric } from "@/lib/generic";
+import { findGeneric, type GenericEntry } from "@/lib/generic";
 import { decodeJob, loadJob, loadResult, saveResult, updateJobLang, type StoredResult } from "@/lib/job";
 import type { Lang, Medicine } from "@/lib/types";
 
@@ -41,6 +41,31 @@ const T = {
 };
 
 const GENBTN: Record<Lang, string> = { hi: "जेनेरिक दवा", bh: "जेनेरिक दवाई", en: "Generic medicine" };
+
+const SUBST: Record<Lang, { title: string; save: string; none: string; code: string }> = {
+  hi: { title: "जन औषधि में सस्ता विकल्प", save: "बचत", none: "इसका जन औषधि विकल्प नहीं मिला — केंद्र पर पूछें", code: "कोड" },
+  bh: { title: "जन औषधि में सस्ता विकल्प", save: "बचत", none: "एकर जन औषधि विकल्प ना मिलल — केंद्र पर पूछीं", code: "कोड" },
+  en: { title: "Cheaper Jan Aushadhi substitute", save: "You save", none: "No Jan Aushadhi match found — ask at the Kendra", code: "code" },
+};
+
+// Same salt + same strength at Jan Aushadhi, shown automatically for every prescribed medicine.
+function Subst({ e, lang }: { e: GenericEntry | null; lang: Lang }) {
+  const s = SUBST[lang];
+  if (!e) return <p className="subst none">{s.none}</p>;
+  const amt = e.approx ? Math.max(0, e.approx - e.ja) : 0;
+  const pct = e.approx ? Math.round((amt / e.approx) * 100) : 0;
+  return (
+    <div className="subst">
+      <small>{s.title}</small>
+      <b>{e.name}</b>
+      <div className="srow">
+        <strong>₹{e.ja}</strong>
+        <span>{e.pack} · {s.code} #{e.code}</span>
+        {e.approx ? <em>{s.save} ≈ ₹{amt} ({pct}%)</em> : null}
+      </div>
+    </div>
+  );
+}
 
 const TIMING: Record<Lang, Record<Medicine["timing"], string>> = {
   hi: { empty_stomach: "खाली पेट", before_food: "खाने से पहले", with_food: "खाने के साथ", after_food: "खाने के बाद", any: "कभी भी" },
@@ -191,6 +216,7 @@ export default function ResultPage() {
               </div>
               <p className="sig"><b>{t.written}:</b> {m.sigExplained}</p>
               {m.needsCheck && <p className="check">{t.check}</p>}
+              <Subst e={gens[i] ?? null} lang={lang} />
               <Link href={`/generic?m=${i}`} className="gmed">
                 <Icon name="rupee" size={22} />
                 <b>{GENBTN[lang]}</b>
