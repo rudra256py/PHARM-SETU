@@ -43,17 +43,19 @@ export default function CallKendra({ lang, items = [], small = false }: { lang: 
 
   async function start() {
     setOpen(true); setBusy(true); setList([]);
-    const p = await new Promise<{ lat: number; lng: number } | null>((res) => {
-      if (!navigator.geolocation) return res(null);
-      navigator.geolocation.getCurrentPosition((x) => res({ lat: x.coords.latitude, lng: x.coords.longitude }), () => res(null), { timeout: 8000, maximumAge: 300_000 });
-    });
-    setPos(p);
-    if (p) {
-      try {
+    try {
+      const p = await new Promise<{ lat: number; lng: number } | null>((res) => {
+        try {
+          if (!navigator.geolocation) return res(null);
+          navigator.geolocation.getCurrentPosition((x) => res({ lat: x.coords.latitude, lng: x.coords.longitude }), () => res(null), { timeout: 8000, maximumAge: 300_000 });
+        } catch { res(null); }
+      });
+      setPos(p);
+      if (p) {
         const j = await (await fetch(`/api/kendra?lat=${p.lat}&lng=${p.lng}`)).json();
-        if (j.ok) setList(j.kendras);
-      } catch { /* helpline fallback below */ }
-    }
+        if (j.ok && Array.isArray(j.kendras)) setList(j.kendras);
+      }
+    } catch { /* helpline fallback is shown below */ }
     setBusy(false);
   }
 
